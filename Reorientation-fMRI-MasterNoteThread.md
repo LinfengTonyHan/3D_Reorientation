@@ -302,6 +302,17 @@ done
 
 ## Analysis Log
 
+### 2026-01-17 - Pipeline 1 NORDIC Processing
+- Set up MATLAB environment for NORDIC:
+  - Installed Image Processing Toolbox
+  - Installed Signal Processing Toolbox
+  - Installed XQuartz for AFNI tools
+- Tested NORDIC on localizerPerception data (2 runs) - successful
+- Started full NORDIC processing for all subjects/sessions (~7 hours total)
+- Created Python preprocessing scripts for Pipeline 1 (05, 06, 07) with B0FieldIdentifier fix
+- Set up GitHub for master notes sharing
+- **Status:** NORDIC processing in progress
+
 ### 2026-01-16 - Pipeline 2 fMRIPrep Started
 - Ran preprocessing scripts for Pipeline 2:
   - `05_splitOffNoiseVols.py` - Split noise volumes from BOLD scans
