@@ -1,9 +1,9 @@
 # Reorientation fMRI Analysis - Master Note Thread
 
 **Project Directory:** `/Users/linfenghan/Desktop/fMRI_Data_Analysis`
-**Last Updated:** 2026-01-15
-**Primary Contact:** [Your Name]
-**Collaborators:** [List collaborators]
+**Last Updated:** 2026-01-19
+**Primary Contact:** Linfeng Han, hanlf@sas.upenn.edu
+**Research supervisors:** Russell Epstein, Geoff Aguirre
 
 ---
 
@@ -68,12 +68,13 @@ fMRI_Data_Analysis/
 │   └── task-*_bold.json
 │
 ├── preproc_pipeline1/             # Pipeline WITH NORDIC processing
-│   ├── sub-*/ses-*/               # Copy of BIDS data
-│   ├── nordic_outputs/            # NORDIC denoised outputs
+│   ├── sub-*/ses-*/               # BIDS data (NORDIC processed in-place)
+│   ├── nordic_scripts/            # MATLAB scripts for NORDIC
+│   ├── derivatives/               # Moved files (noRFs, unused fmaps, etc.)
 │   ├── fprep/                     # fMRIPrep outputs
 │   ├── freesurfer/                # FreeSurfer outputs
-│   ├── tedana/                    # TEDANA outputs
-│   └── freesurfer_license.txt
+│   ├── tedana/                    # TEDANA outputs (pending)
+│   └── 05/06/07*.py               # Python preprocessing scripts
 │
 ├── preproc_pipeline2/             # Pipeline WITHOUT NORDIC (control)
 │   ├── sub-*/ses-*/               # Copy of BIDS data
@@ -129,23 +130,85 @@ python3 03_fix_bids.py
 **Environment:** MATLAB with [MB toolbox](https://github.com/CMRR-C2P/MB) and [NORDIC_Raw](https://github.com/SteenMoeller/NORDIC_Raw)
 
 ```matlab
-% Reference: sample_files_from_professor/matlab/scripts/script_20240930.m
-applyNordic
+% Run per-subject scripts in nordic_scripts/ folder
+cd /Users/linfenghan/Desktop/fMRI_Data_Analysis/preproc_pipeline1/nordic_scripts
+run_nordic_sub002  % or run_nordic_sub010
 ```
-**Status:** ⏳ Not started
+**Status:** ✅ Completed (2026-01-18, ~7 hours for 4 sessions)
 
 #### Step 1.2: fMRIPrep
-**Environment:** Rosetta terminal
+**Environment:** Rosetta terminal (x86_64 architecture required for Docker)
 
+**Check terminal architecture:**
 ```bash
-cd /Users/linfenghan/Desktop/fMRI_Data_Analysis/preproc_pipeline1/
-fmriprep-docker . fprep participant \
-  --nthreads 2 --omp-nthreads 4 --mem-mb 16000 \
-  --bold2anat-init header --me-output-echos \
-  --fs-license-file freesurfer_license.txt \
-  --fs-subjects-dir freesurfer
+uname -m
+# Should return: x86_64 (Rosetta)
+# NOT: arm64 (native Apple Silicon)
 ```
-**Status:** ⏳ Not started (awaiting NORDIC)
+
+**Activate Python environment first:**
+```bash
+cd /Users/linfenghan/Desktop/fMRI_Data_Analysis/mebold-curation-test
+source .venv/bin/activate
+```
+
+**Full fMRIPrep command with detailed comments:**
+```bash
+fmriprep-docker \
+  # INPUT: BIDS dataset directory (contains sub-* folders)
+  /Users/linfenghan/Desktop/fMRI_Data_Analysis/preproc_pipeline1 \
+
+  # OUTPUT: Where fMRIPrep results will be saved
+  /Users/linfenghan/Desktop/fMRI_Data_Analysis/preproc_pipeline1/fprep \
+
+  # ANALYSIS LEVEL: 'participant' processes individual subjects
+  participant \
+
+  # SUBJECT FILTER: Process specific subject(s) only
+  # Remove this line to process ALL subjects
+  --participant-label sub002 \
+
+  # SESSION FILTER: Process specific session(s) only (optional)
+  # Remove this line to process ALL sessions for the subject
+  # --session-label ses001 \
+
+  # TASK FILTER: Process specific task(s) only (optional)
+  # Remove this line to process ALL tasks
+  # --task-id localizerMemory \
+
+  # SKIP BIDS VALIDATION: Bypass strict BIDS compliance checks
+  # Useful when dataset has minor BIDS issues but is otherwise valid
+  --skip-bids-validation \
+
+  # RESOURCE ALLOCATION:
+  --nthreads 4 \        # Total CPU threads for fMRIPrep
+  --omp-nthreads 8 \    # OpenMP threads for parallelized steps (ANTs, etc.)
+  --mem-mb 40000 \      # Memory limit in MB (~40GB), currently set docker RAM limit at 48 GB
+
+  # MULTI-ECHO SPECIFIC OPTIONS:
+  --bold2anat-init header \  # Use header info for BOLD-to-T1w initialization
+  --me-output-echos \        # Output individual echo time series (needed for TEDANA)
+
+  # FREESURFER LICENSE: Required for surface reconstruction
+  --fs-license-file /Users/linfenghan/Desktop/fMRI_Data_Analysis/freesurfer_license.txt \
+
+  # FREESURFER OUTPUT: Where FreeSurfer results will be saved
+  # Reuses existing results if available (saves ~6hrs per subject)
+  --fs-subjects-dir /Users/linfenghan/Desktop/fMRI_Data_Analysis/preproc_pipeline1/freesurfer
+```
+
+**Shell script location:** `/Users/linfenghan/Desktop/fMRI_Data_Analysis/run_fmriprep_pipeline1.sh`
+
+**Important Notes:**
+- Note 1: the 40000 is the internal memory used. On the lab laptop, docker was set at a limit of 48 GB and fMRIprep was set at 40GB, so the number should be changed if there is RAM limit.
+- Note 2: BIDS validation sometimes create trouble; if necessary, add --skip-bids_validation.
+- Note 3: Better to put into a shell script (.sh) and directly executive the shell script from terminal; would save a lot of problems with terminal command format.
+
+**Typical runtime:** ~5-6 hours per subject (2 sessions), ~10 hours for 2 subjects
+
+**Status:** 🔄 In progress
+- sub010: ✅ Completed (2026-01-19)
+- sub002: 🔄 Fixing localizerPerception issue, then will run
 
 #### Step 1.3: TEDANA
 **Status:** ⏳ Not started (awaiting fMRIPrep)
@@ -188,8 +251,9 @@ fmriprep-docker \
 - [x] Data copied to both pipeline directories
 
 ### Pipeline 1: WITH NORDIC
-- [ ] NORDIC denoising
-- [ ] fMRIPrep preprocessing
+- [x] NORDIC denoising ✅ Completed (2026-01-18)
+- [x] Preprocessing scripts (05, 06, 07) ✅ Completed (2026-01-18)
+- [~] fMRIPrep preprocessing - sub010 ✅ Complete, sub002 🔄 In progress (localizerPerception fix)
 - [ ] TEDANA processing
 
 ### Pipeline 2: WITHOUT NORDIC
@@ -198,7 +262,7 @@ fmriprep-docker \
 - [ ] TEDANA processing
 
 ### Current Status
-**Pipeline 1 NORDIC testing in progress** (2026-01-17)
+**Pipeline 1 fMRIPrep: sub010 complete, sub002 localizerPerception fix in progress** (2026-01-19)
 
 ---
 
@@ -302,7 +366,39 @@ done
 
 ## Analysis Log
 
-### 2026-01-17 - Pipeline 1 NORDIC Processing
+### 2026-01-19 - Pipeline 1 fMRIPrep Progress & Troubleshooting
+
+**fMRIPrep Results:**
+- sub010: ✅ Completed successfully (both sessions)
+- sub002: ❌ Failed with EchoTime None error, currently in fix
+
+**Troubleshooting sub002:**
+- Narrowed down issue to `localizerPerception` task in `ses-ses001`
+- Other tasks (localizerMemory, reorientX*) and ses-ses002 work fine
+- Root cause: Likely corrupted during initial NORDIC processing (disk space issue at scan 33/40)
+
+**Fix Applied:**
+1. Removed corrupted localizerPerception files from pipeline1/sub-sub002/ses-ses001/func/
+2. Copied fresh files from dset/ (original BIDS data)
+3. Created targeted fix scripts:
+   - `run_nordic_localizerPerception_fix.m` - NORDIC for just 2 runs
+   - `05_splitOffNoiseVols_fix.py` - Split noise volumes
+   - `06_assign_intendedfor_fix.py` - Assign B0FieldSource
+   - `07_bids_cleanup_fix.py` - Move noRF files to derivatives
+
+**Status:** NORDIC fix running (~20 min for 2 runs)
+
+---
+
+### 2026-01-17 - Pipeline 1 NORDIC Complete & fMRIPrep Started
+- NORDIC denoising completed for all 4 sessions (~7 hours total)
+- Ran preprocessing scripts (05, 06, 07) for Pipeline 1
+- Started fMRIPrep for Pipeline 1
+- sub010 completed overnight successfully
+
+---
+
+### 2026-01-15 - Pipeline 1 NORDIC Processing
 - Set up MATLAB environment for NORDIC:
   - Installed Image Processing Toolbox
   - Installed Signal Processing Toolbox
@@ -313,7 +409,7 @@ done
 - Set up GitHub for master notes sharing
 - **Status:** NORDIC processing in progress
 
-### 2026-01-16 - Pipeline 2 fMRIPrep Started
+### 2026-01-12 - Pipeline 2 fMRIPrep Started
 - Ran preprocessing scripts for Pipeline 2:
   - `05_splitOffNoiseVols.py` - Split noise volumes from BOLD scans
   - `06_assign_intendedfor.py` - Assigned fieldmap metadata
@@ -334,7 +430,7 @@ done
   ```
 - **Status:** ✅ Completed (~10 hours total)
 
-### 2026-01-15 - Fresh BIDS Conversion & Pipeline Setup
+### 2026-01-07 - Fresh BIDS Conversion & Pipeline Setup
 - Performed complete fresh BIDS conversion from raw DICOMs for all subjects/sessions
 - Cleaned up redundant/interrupted scan files in raw data
 - Modified `02_run_heudiconv.sh` to include all subjects and sessions
@@ -343,23 +439,42 @@ done
 - Created fresh pipeline directories and copied clean BIDS data to both
 - **Result:** Both pipelines ready with identical starting data
 
-### 2026-01-13 - Initial Documentation
+### 2026-01-03 - Initial Documentation
 - Created master note document
 - Established two-pipeline comparison approach (NORDIC vs non-NORDIC)
 - Initial directory structure planning
 
 ---
 
-## Questions for Collaborators
+## Logistics
 
-1. **NORDIC Processing:** Ready to begin - any specific parameters needed?
-2. **Analysis Approach:** Which space for final analysis (MNI vs native)?
-3. **ROI Analysis:** Specific regions of interest (brainstem mentioned)?
-4. **Task Contrasts:** What contrasts should be modeled?
+### Storage Requirements
+
+**Current situation (2026-01-17):**
+- Processing paused at scan 33/40 due to insufficient disk space
+- Current machine: 926GB total, 99% full
+- Temporary fix: Moving sample data to Dropbox
+
+**Storage estimate for full study (40 subjects, 2 sessions each):**
+
+| Data Type | Per Subject | 40 Subjects |
+|-----------|-------------|-------------|
+| Raw DICOMs | ~20-30 GB | 800-1200 GB |
+| BIDS converted | ~20-30 GB | 800-1200 GB |
+| Pipeline 1 (NORDIC + fMRIPrep) | ~30-40 GB | 1200-1600 GB |
+| Pipeline 2 (fMRIPrep only) | ~30-40 GB | 1200-1600 GB |
+| TEDANA outputs | ~10-20 GB | 400-800 GB |
+| **Total** | **~100-150 GB** | **~4-6 TB** |
+
+**Recommended storage setup:**
+| Option | Configuration | Est. Cost |
+|--------|---------------|-----------|
+| Good | 8TB SSD | ~$500-700 |
+| Better | 4TB SSD + 12TB HDD | ~$400-500 |
+| Best | 8TB SSD + 16TB HDD | ~$700-900 |
+
+**Recommended workflow:**
+- SSD: Active processing (current subjects)
+- HDD: Raw DICOMs + completed/archived subjects
 
 ---
-
-## Contact Information
-- **Principal Investigator:** [Name] - [Email]
-- **Lab Manager:** [Name] - [Email]
-- **Data Analyst:** [Name] - [Email]
