@@ -7,6 +7,9 @@
 
 ---
 
+## Major goal of this note
+- To date the multi-echo fMRI preprocessing steps (and issues) in the most informative, detailed manner for future references
+
 ## Table of Contents
 1. [Project Overview](#project-overview)
 2. [Directory Structure](#directory-structure)
@@ -19,9 +22,6 @@
 ---
 
 ## Project Overview
-
-### Research Question
-[Add your research question here]
 
 ### Study Design
 **Tasks:**
