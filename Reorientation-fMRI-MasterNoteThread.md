@@ -206,12 +206,24 @@ fmriprep-docker \
 
 **Typical runtime:** ~5-6 hours per subject (2 sessions), ~10 hours for 2 subjects
 
-**Status:** 🔄 In progress
+**Status:** ✅ Completed
 - sub010: ✅ Completed (2026-01-19)
-- sub002: 🔄 Fixing localizerPerception issue, then will run
+- sub002: ✅ Completed (2026-01-19)
 
 #### Step 1.3: TEDANA
-**Status:** ⏳ Not started (awaiting fMRIPrep)
+**Environment:** ARM64 terminal (not Rosetta)
+
+```bash
+cd /Users/linfenghan/Desktop/fMRI_Data_Analysis
+source mebold-curation-test/.venv/bin/activate
+python3 preproc_pipeline1/run_tedana.py --sub sub010
+```
+
+**Script location:** `preproc_pipeline1/run_tedana.py`
+
+**Status:**
+- sub010: ✅ Completed (2026-01-19)
+- sub002: ⏳ Not started
 
 ---
 
@@ -238,7 +250,19 @@ fmriprep-docker \
 **Status:** ✅ Completed (2026-01-17, ~10 hours)
 
 #### Step 2.2: TEDANA
-**Status:** ⏳ Not started
+**Environment:** ARM64 terminal (not Rosetta)
+
+```bash
+cd /Users/linfenghan/Desktop/fMRI_Data_Analysis
+source mebold-curation-test/.venv/bin/activate
+python3 preproc_pipeline2/run_tedana.py --sub sub010
+```
+
+**Script location:** `preproc_pipeline2/run_tedana.py`
+
+**Status:**
+- sub010: ✅ Completed (2026-01-19)
+- sub002: ⏳ Not started
 
 ---
 
@@ -253,16 +277,16 @@ fmriprep-docker \
 ### Pipeline 1: WITH NORDIC
 - [x] NORDIC denoising ✅ Completed (2026-01-18)
 - [x] Preprocessing scripts (05, 06, 07) ✅ Completed (2026-01-18)
-- [~] fMRIPrep preprocessing - sub010 ✅ Complete, sub002 🔄 In progress (localizerPerception fix)
-- [ ] TEDANA processing
+- [x] fMRIPrep preprocessing ✅ Completed (sub010: 2026-01-19, sub002: 2026-01-19)
+- [~] TEDANA processing - sub010 ✅ Complete, sub002 ⏳ Not started
 
 ### Pipeline 2: WITHOUT NORDIC
 - [x] Preprocessing scripts (05, 06, 07)
 - [x] fMRIPrep preprocessing ✅ Completed (~10 hours)
-- [ ] TEDANA processing
+- [~] TEDANA processing - sub010 ✅ Complete, sub002 ⏳ Not started
 
 ### Current Status
-**Pipeline 1 fMRIPrep: sub010 complete, sub002 localizerPerception fix in progress** (2026-01-19)
+**Both pipelines: fMRIPrep complete for all subjects. TEDANA complete for sub010.** (2026-01-19)
 
 ---
 
@@ -289,6 +313,27 @@ fmriprep-docker \
 - **Terminal switching:** Apple Silicon for Python scripts, Rosetta for fMRIPrep
 - **Python environment:** `source .venv/bin/activate`
 - **Memory:** fMRIPrep requires ~16GB RAM
+
+### Forcing ARM64 Architecture from Rosetta Terminal
+
+When fMRIPrep is running in Rosetta (x86_64) and you need to run ARM64 commands (e.g., TEDANA) in parallel:
+
+**Option 1: Open new ARM64 shell in same terminal window**
+```bash
+arch -arm64 /bin/zsh
+```
+
+**Option 2: Check current architecture**
+```bash
+uname -m
+# Returns: arm64 (native) or x86_64 (Rosetta)
+```
+
+**Why this matters:**
+- TEDANA was installed with ARM64 packages (`pip install tedana` in ARM64 terminal)
+- Running TEDANA in Rosetta causes architecture mismatch errors (numpy/scipy compiled for wrong arch)
+- fMRIPrep requires Rosetta for Docker compatibility
+- Solution: Run fMRIPrep in Rosetta terminal, TEDANA in ARM64 terminal (or use `arch -arm64`)
 
 ### MATLAB Requirements for NORDIC
 - **Image Processing Toolbox** - Required by NORDIC (install via MATLAB Add-Ons)
@@ -366,27 +411,36 @@ done
 
 ## Analysis Log
 
-### 2026-01-19 - Pipeline 1 fMRIPrep Progress & Troubleshooting
+### 2026-01-19 - Pipeline 1 Complete & TEDANA Processing
 
 **fMRIPrep Results:**
-- sub010: ✅ Completed successfully (both sessions)
-- sub002: ❌ Failed with EchoTime None error, currently in fix
+- sub010: ✅ Completed successfully
+- sub002: ✅ Completed successfully (after fixing corrupted files)
 
-**Troubleshooting sub002:**
-- Narrowed down issue to `localizerPerception` task in `ses-ses001`
-- Other tasks (localizerMemory, reorientX*) and ses-ses002 work fine
-- Root cause: Likely corrupted during initial NORDIC processing (disk space issue at scan 33/40)
+**sub002 Corruption Fixes Applied:**
+1. **localizerPerception (ses-ses001):** Corrupted during initial NORDIC (disk space issue)
+   - Removed corrupted files, copied fresh from dset/, re-ran NORDIC
+   - Scripts: `run_nordic_localizerPerception_fix.m`, `05/06/07_fix.py`
 
-**Fix Applied:**
-1. Removed corrupted localizerPerception files from pipeline1/sub-sub002/ses-ses001/func/
-2. Copied fresh files from dset/ (original BIDS data)
-3. Created targeted fix scripts:
-   - `run_nordic_localizerPerception_fix.m` - NORDIC for just 2 runs
-   - `05_splitOffNoiseVols_fix.py` - Split noise volumes
-   - `06_assign_intendedfor_fix.py` - Assign B0FieldSource
-   - `07_bids_cleanup_fix.py` - Move noRF files to derivatives
+2. **reorientXlong1 run-01 (ses-ses002):** echo-5 file truncated (379MB expected, 161MB actual)
+   - Detected via `gunzip -t` test
+   - Removed entire run, copied fresh from dset/, re-ran NORDIC
+   - Scripts: `run_nordic_reorientXlong1_fix.m`, `05/06/07_fix2.py`
 
-**Status:** NORDIC fix running (~20 min for 2 runs)
+**TEDANA Processing:**
+- Created `run_tedana.py` scripts for both pipelines
+- Automatically finds fMRIPrep echo outputs, extracts echo times from JSON, runs TEDANA
+- Echo times: [10.2, 21.54, 32.88, 44.22, 55.56] ms (read from BIDS JSONs)
+- sub010: ✅ Completed for both pipelines (20 runs each)
+- sub002: ⏳ Awaiting processing
+
+**TEDANA Output Files:**
+- `desc-optcom_bold.nii.gz` - Optimally combined echoes (weighted average)
+- `desc-denoised_bold.nii.gz` - Optimally combined + ICA denoised (recommended for analysis)
+
+**Localizer Files Organized:**
+- Copied to `Localizer_GLMs/Pipeline1/sub010/` and `Localizer_GLMs/Pipeline2/sub010/`
+- Naming: `ses001_localizerMemory.nii.gz`, `ses001_localizerPerception_1.nii.gz`, etc.
 
 ---
 
